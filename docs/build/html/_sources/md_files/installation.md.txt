@@ -26,7 +26,7 @@ After installing the Docker, the latest stable FEniCS image (FEniCS 2019.1.0) ca
 sudo docker run -ti \
     -v $(pwd):/home/fenics/shared \
     -v /tmp \
-    quay.io/fenicsproject/stable
+    ghcr.io/scientificcomputing/fenics-gmsh:2024-05-30
 ```
 
 Note that repeating above described procedure always creates a new container, which may eventually exhaust the local storage. Therefore, it is suggested to restart the same container using
@@ -52,6 +52,15 @@ Here, it is assumed that the FEDM code is located in the subdirectory `fedm` wit
 ```bash
 cd shared/fedm
 ```
+
+Alternatively, it is possible to install FEniCS using Conda
+
+```
+conda create -n fenicsproject -c conda-forge fenics
+source activate fenicsproject
+```
+
+or installing it from binary files (availability depends on the Linux distribution).
 
 The code directory has the following structure:
 

@@ -1,6 +1,6 @@
 1. Download and run the legacy FEniCS docker image:
 ```bash
-docker run -ti -v $(pwd):/home/fenics/shared -v /tmp quay.io/fenicsproject/stable
+docker run -ti -v $(pwd):/home/fenics/shared -v /tmp ghcr.io/scientificcomputing/fenics-gmsh:2024-05-30
 ```
 
 2. Install FEDM:

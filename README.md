@@ -19,7 +19,7 @@ Initial build - version 1.0
 
 ## Installation
 
-FEniCS version 2019.1.0. is required to run the FEDM code. The easiest way to obtain the desired version of FEniCS is using a Docker image. More information on how to install the Docker and run FEDM can be found in documentation. The brief description, assuming that FEniCS is already installed, is given below.
+FEniCS version 2019.1.0. is required to run the FEDM code. The easiest way to obtain the desired version of FEniCS is using a Docker image. Alternatively, FEniCS can be installed via Anaconda or from binary files as described [here](https://fenicsproject.org/download/archive/). More information on how to install the Docker and run FEDM can be found in documentation.  The brief description, assuming that FEniCS is already installed, is given below.
 
 The FEDM code directory has the following structure:
 

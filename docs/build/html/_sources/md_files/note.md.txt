@@ -1,1 +1,1 @@
-FEDM is developed for `FEniCS version 2019.1.0.` and currently does not work with `FEniCSx 0.7` which has been recently [published](https://docs.fenicsproject.org/dolfinx/main/python/installation.html).
+FEDM is developed for `FEniCS version 2019.1.0.` and currently does not work with `FEniCSx 0.10` which has been recently [published](https://docs.fenicsproject.org/dolfinx/main/python/installation.html).

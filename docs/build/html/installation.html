@@ -453,7 +453,7 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>-ti<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-v<span class="w"> </span><span class="k">$(</span><span class="nb">pwd</span><span class="k">)</span>:/home/fenics/shared<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-v<span class="w"> </span>/tmp<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>quay.io/fenicsproject/stable
+<span class="w">    </span>ghcr.io/scientificcomputing/fenics-gmsh:2024-05-30
 </pre></div>
 </div>
 <p>Note that repeating above described procedure always creates a new container, which may eventually exhaust the local storage. Therefore, it is suggested to restart the same container using</p>
@@ -475,6 +475,12 @@ docker<span class="w"> </span>run<span class="w"> </span>-ti<span class="w"> </s
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>shared/fedm
 </pre></div>
 </div>
+<p>Alternatively, it is possible to install FEniCS using Conda</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">conda</span> <span class="n">create</span> <span class="o">-</span><span class="n">n</span> <span class="n">fenicsproject</span> <span class="o">-</span><span class="n">c</span> <span class="n">conda</span><span class="o">-</span><span class="n">forge</span> <span class="n">fenics</span>
+<span class="n">source</span> <span class="n">activate</span> <span class="n">fenicsproject</span>
+</pre></div>
+</div>
+<p>or installing it from binary files (availability depends on the Linux distribution).</p>
 <p>The code directory has the following structure:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>fedm
 ├── examples
