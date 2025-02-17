@@ -1,0 +1,12 @@
+################################################################################
+#
+# Description: net ionization coefficient
+# Reaction:    neutrals + e -> ions + e + e
+# Data source: B. Bagheri Plasma Sources Sci. Technol. 27 (2018) 095002
+# Data:        E_m [V/m]  alpha [1/m]
+# Dependence:  fun:E
+# Comment:
+#
+################################################################################
+
+(1.1944e6 + 4.3666e26 * E_m**(-3))*exp(-2.73e7/E_m)-340.75

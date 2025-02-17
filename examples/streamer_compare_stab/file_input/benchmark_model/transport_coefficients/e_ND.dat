@@ -1,0 +1,12 @@
+################################################################################
+#
+# Description: diffusion coefficient
+# Species:     electrons (field)
+# Data source: B. Bagheri Plasma Sources Sci. Technol. 27 (2018) 095002
+# Data:        E_m [V/m]  N*D [m^2/s]
+# Dependence:  fun:E
+# Comment:
+#
+################################################################################
+
+4.3628e-3*E_m**(0.22)

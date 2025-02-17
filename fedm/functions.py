@@ -81,6 +81,16 @@ class LineSubDomain(df.SubDomain):
         in_r_range = df.between(r, self._r_range)
         in_z_range = df.between(z, self._z_range)
         return in_r_range and in_z_range and on_boundary
+    
+class PointSubDomain(df.SubDomain):
+    def __init__(self, z_range: Tuple[float, float]):
+        super().__init__()
+        self._z_range = z_range
+
+    def inside(self, x: List[float], on_boundary: bool) -> bool:
+        z = x[0]
+        in_z_range = df.between(z, self._z_range)
+        return in_z_range and on_boundary
 
 
 def Marking_boundaries(
@@ -110,6 +120,10 @@ def Marking_boundaries(
             z1, z2 = boundary[1] - eps, boundary[2] + eps
             r1, r2 = boundary[3] - eps, boundary[4] + eps
             bmark = LineSubDomain((r1, r2), (z1, z2))
+        elif boundary_type == "point":
+            eps = df.DOLFIN_EPS
+            z1, z2 = boundary[1] - eps, boundary[2] + eps
+            bmark = PointSubDomain((z1, z2))
         else:
             err_msg = dedent(
                 f"""\
@@ -251,6 +265,8 @@ def weak_form_balance_equation(
     r: float = 0.5 / df.pi,
     D: Optional[df.Function] = None,  # get by indexing result of df.Function_definition
     log_representation: bool = False,
+    Na: Optional[float] = 0.,  
+    psi: Optional[float] = 0.01,  
 ) -> df.Form:
     """
     Returns the weak form of the particle balance equations.
@@ -319,6 +335,10 @@ def weak_form_balance_equation(
         diffusion coefficient, only required for the diffusion equation.
     log_representation : bool, default False
         Use logarithmic representation.
+    Na: float, default 0.
+        First log stabilisation source term (useful when f = 0)
+    psi: float, default 0.01
+        Second log stabilisation source term (useful when f = 0) 
 
     Returns
     -------
@@ -346,7 +366,7 @@ def weak_form_balance_equation(
             "fedm.weak_form_balance_equation_log_representation: When 'equation_type' "
             "is diffusion-reaction, must also supply the diffusion coefficient 'D'."
         )
-    # tr = timestep_ratio
+    
     tr = dt / dt_old
     trp1 = 1.0 + tr
     tr2p1 = 1.0 + 2.0 * tr
@@ -364,6 +384,133 @@ def weak_form_balance_equation(
         diffusion = 2.0 * df.pi * df.dot(-df.grad(D * expu_or_u), df.grad(v)) * r * dx
     if equation_type == "drift-diffusion-reaction":
         diffusion = 2.0 * df.pi * df.dot(Gamma, df.grad(v)) * r * dx
+
+    # Source terms
+    source = 2.0 * df.pi * v * f * r * dx
+
+    # Logarithmic optional stabilisation term (prevent u -> 0 )
+    if log_representation & (Na > 0.):
+        source += 2.0 * df.pi * Na * df.exp(-psi *  u) * v * r * dx
+
+    # Return with integral bits
+    return time_derivative - diffusion - source
+
+    
+def weak_form_supg_balance_equation(
+    equation_type: str,
+    dt: df.Expression,
+    dt_old: df.Expression,
+    dx: df.Measure,  # Can use built-in dolfin.dx here
+    u: Any,  # obtain by indexing result of df.TrialFunction
+    u_old: Any,  # obtain by indexing result of df.Function
+    u_old1: Any,  # obtain by indexing result of df.Function
+    tauwgradv: Any,  # obtain by indexing result of df.TestFunctions
+    f: df.Function,  # obtain by indexing result of df.Function_definition
+    Gamma: df.Function,  # obtain by indexing result of df.Function_definition
+    r: float = 0.5 / df.pi,
+    D: Optional[df.Function] = None,  # get by indexing result of df.Function_definition
+) -> df.Form:
+    """
+    Returns the SUPG stabilisation term form of the particle balance equations.
+
+    2.0 * pi * (
+        (
+            (1.0 + 2.0 * dt / dt_old) / (1.0 + dt / dt_old)
+        )*(
+            u - u_old * pow(1.0 + dt / dt_old, 2.0) / (1.0 + 2.0 * dt / dt_old)
+              + u_old1 * pow(dt / dt_old, 2.0) / (1.0 + 2.0 * dt / dt_old)
+        )
+    ) * (tauwgradv/dt) * r * dx
+
+    If solving diffusion-reaction equation, also includes the term:
+
+    -2.0 * pi * dot(-grad(D * u), grad(tauwgradv)) * r * dx          
+
+    If solving drift-diffusion-reaction, instead includes the term:
+
+    -2.0 * pi * dot(Gamma, grad(tauwgradv)) * r * dx
+
+    In all cases, also includes the source term:
+
+    - 2.0 * pi * f * tauwgradv * r * dx
+
+    Parameters
+    ----------
+    equation_type : str
+        Type of equation to solve. Options are 'reaction', 'diffusion-reaction', or
+        'drift-diffusion-reaction'.
+    dt : df.Expression
+        Current time-step size
+    dt_old : df.Expression
+        Previous time-step size
+    dx : df.Measure
+        dV, used to build integrals. Recommended to use dolfin.dx.
+    u
+        Trial function
+    u_old
+        Value of variable in current time step
+    u_old1
+        Value of variable in previous time step
+    tauwgradv
+        SUPG test function
+    f : df.Function
+        Source term
+    Gamma : df.Function
+        particle flux
+    r : float, default 0.5 / pi
+        r coordinate
+    D : df.Function, default None
+        diffusion coefficient, only required for the diffusion equation.
+    log_representation : bool, default False
+        Use logarithmic representation.
+
+    Returns
+    -------
+    df.Form
+
+    Raises
+    ------
+    ValueError
+        If equation_type is not recognised, or if D is not supplied when solving the
+        diffusion-reaction equation.
+    """
+    equation_types = ["reaction", "diffusion-reaction", "drift-diffusion-reaction"]
+    if equation_type not in equation_types:
+        err_msg = dedent(
+            f"""\
+            fedm.weak_form_balance_equation_log_representation: The equation type
+            {equation_type}' is not recognised. Must be one of
+            {comma_separated(equation_types)}.
+            """
+        )
+        raise ValueError(err_msg.rstrip().replace("\n", " "))
+
+    if equation_type == "diffusion-reaction" and D is None:
+        raise ValueError(
+            "fedm.weak_form_balance_equation_log_representation: When 'equation_type' "
+            "is diffusion-reaction, must also supply the diffusion coefficient 'D'."
+        )
+
+    # tr = timestep_ratio
+    tr = dt / dt_old
+    trp1 = 1.0 + tr
+    tr2p1 = 1.0 + 2.0 * tr
+    # Standard part
+    u_part = (u * tr2p1 - trp1**2.0 * u_old + tr**2.0 * u_old1) / trp1
+
+    # Diffusion terms
+    diffusion = 0.0
+
+    if equation_type == "diffusion-reaction":
+        diffusion = 2.0 * df.pi * df.div(df.grad(D * u)) * tauwgradv * r * dx
+    if equation_type == "drift-diffusion-reaction":
+        diffusion = - 2.0 * df.pi * df.div(Gamma) * tauwgradv * r * dx
+    
+    time_derivative = 2.0 * df.pi * (u_part * tauwgradv / dt) * r * dx
+
+    # Source terms
+    source = 2.0 * df.pi * tauwgradv * f * r * dx
+
     # Return with integral bits
     return time_derivative - diffusion - source
 
@@ -417,6 +564,7 @@ def Boundary_flux(
     vth: float = 0.0,
     ref: float = 1.0,
     Ion_flux: float = 0.0,
+    log_representation: bool = True,
 ):
     """
     Function defines boundary conditions for different equations.
@@ -452,6 +600,8 @@ def Boundary_flux(
         Reflection coefficient for specified particles species and boundary.
     Ion_flux: float, default 0.0
         Flux of ions
+    log_representation : bool, default False
+        Use logarithmic representation.
 
     Returns
     -------
@@ -472,6 +622,8 @@ def Boundary_flux(
     bc_types = ["zero flux", "flux source", "Neumann"]
     equation_types = ["reaction", "diffusion-reaction", "drift-diffusion-reaction"]
     particle_types = ["Heavy", "electrons"]
+
+    expu_or_u = df.exp(u) if log_representation else u
 
     # If provided bc_type has an underscore instead of a space, correct it
     if "_" in bc_type:
@@ -514,14 +666,140 @@ def Boundary_flux(
     if bc_type == "flux source" and equation_type != "reaction":
         result = (1.0 - ref) / (1.0 + ref)
         if equation_type == "diffusion-reaction":
-            result *= 0.5 * vth * df.exp(u)
+            result *= 0.5 * vth * expu_or_u
         if equation_type == "drift-diffusion-reaction":
-            result *= (0.5 * vth + abs(sign * mu * df.dot(E, normal))) * df.exp(u)
+            result *= (0.5 * vth + abs(sign * mu * df.dot(E, normal))) * expu_or_u
             if particle_type == "electrons":
                 result -= 2.0 * gamma * Ion_flux / (1.0 + ref)
         result = 2.0 * df.pi * result * v * r * ds_temp
     elif bc_type == "Neumann" and equation_type == "drift-diffusion-reaction":
-        result = 2.0 * df.pi * df.dot(sign * mu * E, normal) * df.exp(u) * v * r * ds_temp
+        result = 2.0 * df.pi * df.dot(sign * mu * E, normal) * expu_or_u * v * r * ds_temp
+    else:
+        # default, if bc_type is 'zero_flux', or if no other conditions are met.
+        result = 0.0
+    return result
+
+
+def Boundary_flux_1d(
+    bc_type: str,
+    equation_type: str,
+    particle_type: str,
+    sign: float,
+    mu: Any,
+    E: Any,
+    normal: Any,
+    u: Any,
+    gamma: Any,
+    v: Any,
+    vth: float = 0.0,
+    ref: float = 1.0,
+    Ion_flux: float = 0.0,
+    log_representation: bool = True,
+):
+    """
+    Function defines boundary conditions for different equations.
+
+    Parameters
+    ----------
+        Type of boundary condition. Options are 'zero flux', 'flux source' or 'Neumann'
+    equation_type : str
+        Choices are 'reaction', 'diffusion-reaction' or 'drift-diffusion-reaction'
+    particle_type : str
+        Choices are 'Heavy' or 'electrons'.
+    sign: float
+        Particle charge sign
+    mu: df.Function
+        Mobility
+    E
+        Electric field, Dolfin ComponentTensor
+    normal
+        Dolfin FacetNormal
+    u
+        Trial function
+    gamma
+        Secondary electron emission coefficient
+    v
+        Test function
+    vth: float, default 0.0
+        Thermal velocity
+    ref: float, default 1.0
+        Reflection coefficient for specified particles species and boundary.
+    Ion_flux: float, default 0.0
+        Flux of ions
+    log_representation : bool, default False
+        Use logarithmic representation.
+
+    Returns
+    -------
+    df.Form
+        If bc_type is 'flux source' and there is a diffusion term in equation_type.
+        Also if the user combines Neumann boundaries with a drift-diffusion-reaction
+        equation.
+    float
+        Otherwise.
+
+    Raises
+    ------
+    ValueError
+        If bc_type is not recognised. If bc_type is not 'zero flux', also raised if
+        equation_type is not recognised. Furthermore, if equation_type is
+        'drift-diffusion-reaction', raises if particle_type is not recognised.
+    """
+    bc_types = ["zero flux", "flux source", "Neumann"]
+    equation_types = ["reaction", "diffusion-reaction", "drift-diffusion-reaction"]
+    particle_types = ["Heavy", "electrons"]
+
+    expu_or_u = df.exp(u) if log_representation else u
+
+    # If provided bc_type has an underscore instead of a space, correct it
+    if "_" in bc_type:
+        warnings.warn("fedm.BoundaryFlux: bc_type should have spaces, not underscores")
+        bc_type = bc_type.replace("_", " ")
+
+    if bc_type not in bc_types:
+        err_msg = dedent(
+            f"""\
+            fedm.Boundary_flux: boundary condition type '{bc_type}' not recognised.
+            Must be one of {comma_separated(bc_types)}.
+            """
+        )
+        raise ValueError(err_msg.rstrip().replace("\n", " "))
+
+    # Only raise error on bad 'equation_type' if the value is needed
+    if bc_type != "zero flux" and equation_type not in equation_types:
+        err_msg = dedent(
+            f"""\
+            fedm.Boundary_flux: equation type '{equation_type}' not recognised.
+            Must be one of {comma_separated(equation_types)}.
+            """
+        )
+        raise ValueError(err_msg.rstrip().replace("\n", " "))
+
+    # Only raise error on bad 'particle_type' if the value is needed
+    if (
+        bc_type == "flux source"
+        and equation_type == "diffusion-reaction"
+        and particle_type not in particle_types
+    ):
+        err_msg = dedent(
+            f"""\
+            fedm.Boundary_flux: particle type '{particle_type}' not recognised.
+            Must be one of {comma_separated(particle_types)}.
+            """
+        )
+        raise ValueError(err_msg.rstrip())
+
+    if bc_type == "flux source" and equation_type != "reaction":
+        result = (1.0 - ref) / (1.0 + ref)
+        if equation_type == "diffusion-reaction":
+            result *= 0.5 * vth * expu_or_u
+        if equation_type == "drift-diffusion-reaction":
+            result *= (0.5 * vth + abs(sign * mu * df.dot(E, normal))) * expu_or_u
+            if particle_type == "electrons":
+                result -= 2.0 * gamma * Ion_flux / (1.0 + ref)
+        result = result * v
+    elif bc_type == "Neumann" and equation_type == "drift-diffusion-reaction":
+        result = df.dot(sign * mu * E, normal) * expu_or_u * v
     else:
         # default, if bc_type is 'zero_flux', or if no other conditions are met.
         result = 0.0
@@ -971,6 +1249,7 @@ def adaptive_solver(
     max_error: List[float],
     ttol: float,
     dt_min: float,
+    ite: int = 0,
     time_dependent_arguments: Optional[List[Any]] = None,
     approximation: str = "LMEA",
 ) -> float:
@@ -1044,7 +1323,8 @@ def adaptive_solver(
                 arg.t = t
 
         # solving the equation
-        nonlinear_solver.solve(problem, u_new.vector())
+        ite0, _  = nonlinear_solver.solve(problem, u_new.vector())
+        ite += ite0
 
         # assigning newly calculated values to post-processing variablables
         assigner.assign(var_list_new, u_new)
@@ -1106,7 +1386,7 @@ def adaptive_solver(
         assigner.assign(var_list_new, u_new)
 
         # Call self with args reset and new time step
-        t = adaptive_solver(
+        t, ite = adaptive_solver(
             nonlinear_solver,
             problem,
             t,
@@ -1122,12 +1402,13 @@ def adaptive_solver(
             max_error,
             ttol,
             dt_min,
+            ite,
             time_dependent_arguments,
             approximation,
         )
 
     # Return the new time step
-    return t
+    return t, ite
 
 
 def Normal_vector(mesh: df.Mesh):

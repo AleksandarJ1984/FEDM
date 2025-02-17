@@ -1,0 +1,12 @@
+################################################################################
+#
+# Description: mobility
+# Species:     electrons (field)
+# Data source: B. Bagheri Plasma Sources Sci. Technol. 27 (2018) 095002
+# Data:        const [V/m]  N*b [1/(m*V*s)]
+# Dependence:  const.
+# Comment:
+#
+################################################################################
+
+0.00000E+00

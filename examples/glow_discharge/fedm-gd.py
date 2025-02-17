@@ -445,7 +445,7 @@ while t < T_final:
     # ============================================================================
     # Solving the coupled equation ussing adaptive solver. The calculated values are assigned to the variables used for postprocessing.
     # ============================================================================
-    t = adaptive_solver(nonlinear_solver, problem, t, dt, dt_old, u_new, u_old, variable_list_new, variable_list_old, assigner, error, files.error_file, max_error, ttol, dt_min, time_dependent_arguments = [Phi_powered], approximation = approximation)
+    t, _ = adaptive_solver(nonlinear_solver, problem, t, dt, dt_old, u_new, u_old, variable_list_new, variable_list_old, assigner, error, files.error_file, max_error, ttol, dt_min, time_dependent_arguments = [Phi_powered], approximation = approximation)
 
     log('time', files.model_log, t)  # Time logging
 
